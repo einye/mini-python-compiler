@@ -1,0 +1,131 @@
+# x86_generator.py
+
+def generate_x86(tac):
+    registers = ['eax', 'ebx', 'ecx', 'edx']
+    reg_map = {}
+    mem_map = {}
+    data_section = set()
+    asm = []
+    uses_printf = False
+
+    def get_operand(op):
+        if op == 'True':
+            return '1'
+        elif op == 'False':
+            return '0'
+        if isinstance(op, int):
+            return f"{op}"
+        if op in reg_map:
+            return reg_map[op]
+        elif op in mem_map:
+            return f"[{mem_map[op]}]"
+        else:
+            return f"[{op}]"
+
+    def allocate(op):
+        if op is None or isinstance(op, int):
+            return
+        if op.startswith('t'):  # temporaries go to registers
+            for r in registers:
+                if r not in reg_map.values():
+                    reg_map[op] = r
+                    return
+        # everything else goes to memory
+        mem_map[op] = op
+        data_section.add(op)
+
+    # First pass: allocate storage
+    for quad in tac:
+        _, a1, a2, res = quad
+        allocate(a1)
+        allocate(a2)
+        allocate(res)
+
+    # Begin output
+    asm.append("section .data")
+    asm.append("    fmt db \'%d', 10, 0")  # format string "%d\n"
+    for var in sorted(data_section):
+        asm.append(f"    {var} dd 0")
+
+    asm.append("\nsection .text")
+    asm.append("    global _start")
+    asm.append("    extern printf")
+    asm.append("_start:")
+
+    for quad in tac:
+        op, a1, a2, res = quad
+
+        if op == '=':
+            src = get_operand(a1)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {src}")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+
+        elif op in ('+', '-', '*', '//'):
+            left = get_operand(a1)
+            right = get_operand(a2)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {left}")
+            if op == '+':
+                asm.append(f"    add eax, {right}")
+            elif op == '-':
+                asm.append(f"    sub eax, {right}")
+            elif op == '*':
+                asm.append(f"    imul eax, {right}")
+            elif op == '//':
+                asm.append("    cdq")
+                asm.append(f"    mov ebx, {right}")
+                asm.append("    idiv ebx")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+
+        elif op in ('==', '!=', '>', '<', '>=', '<='):
+            left = get_operand(a1)
+            right = get_operand(a2)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {left}")
+            asm.append(f"    cmp eax, {right}")
+            set_instr = {
+                '==': 'sete', '!=': 'setne', '>': 'setg', '<': 'setl', '>=': 'setge', '<=': 'setle'
+            }[op]
+            asm.append(f"    {set_instr} al")
+            asm.append(f"    movzx eax, al")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+
+        elif op == 'ifnz':
+            cond = get_operand(a1)
+            label = res
+            asm.append(f"    cmp {cond}, 0")
+            asm.append(f"    jne {label}")
+
+        elif op == 'goto':
+            asm.append(f"    jmp {res}")
+
+        elif op == 'label':
+            asm.append(f"{res}:")
+
+        elif op == 'print':
+            uses_printf = True
+            val = get_operand(a1)
+            asm += [
+                f"    push dword {val}",
+                f"    push dword fmt",
+                f"    call printf",
+                f"    add esp, 8"
+            ]
+
+    # Exit syscall
+    asm += [
+        "    mov eax, 1",   # syscall: exit
+        "    xor ebx, ebx", # exit code 0
+        "    int 0x80"
+    ]
+
+    return '\n'.join(asm)
+
+
+def save_asm(filename, asm_code):
+    with open(filename, 'w') as f:
+        f.write(asm_code)
