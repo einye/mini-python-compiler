@@ -250,44 +250,74 @@ parser = yacc.yacc()
 # Main
 
 if __name__ == '__main__':
-    # Example usage:
-    source_code = """
-    x = 0
-    while x < 3:
-        print(x)
-        x = x + 1
-    """
+    import sys
 
-    lexer.input(source_code) # Feed the source code to the lexer
-    tokens = []
+    # 1. Determine the input file
+    if len(sys.argv) == 2:
+        input_file = sys.argv[1]
+        try:
+            with open(input_file, 'r') as f:
+                source_code = f.read()
+                if not source_code.endswith('\n'):
+                    source_code += '\n'
+            print(f"Compiling {input_file}...")
+        except FileNotFoundError:
+            print(f"Error: Could not find file '{input_file}'")
+            sys.exit(1)
+    else:
+        # No input file provided, exit with usage message
+        print("Usage: python main.py <source_file.py>")
+        exit(1)
+
+    output_file = "program.asm"
+
+    # --- Lexing ---
+    lexer.input(source_code)
+    tokens_list = []
     while True:
         tok = lexer.token()
         if not tok:
-            break    # No more input
-        tokens.append(tok)
+            break
+        tokens_list.append(tok)
 
-    for token in tokens:
+    #You can comment out the following lines if you don't want to see the tokens printed
+    print("Tokens:")
+    for token in tokens_list:
         print(token)
 
-    ast = parser.parse(source_code) # Parse the source code and get the AST
+    # --- Parsing ---
+    ast = parser.parse(source_code)
+    if not ast:
+        print("Parsing failed.")
+        sys.exit(1)
+        
+    print("\nAST generated successfully.")
+    # You can comment out the below lies if you don't want to see the AST printed
     print("\nAST:")
     pprint.pprint(ast)
-    #print(ast)
 
-    #Semantic
+    # --- Semantic Analysis ---
     try:
-        check_semantics(ast)
-        print("\nSemantic analysis passed.")
+        # We capture the resulting symbol table (env) here
+        symbol_table = check_semantics(ast)
+        print("Semantic analysis passed.")
     except SemanticError as e:
-        print(f"Semantic error: {e}")
-        exit(1)
+        print(f"\nSemantic error: {e}")
+        sys.exit(1)
 
-    #TAC 
+    # --- TAC Generation ---
     tac = generate_tac(ast)
     print("\nThree address code (Quadruples):")
     for quad in tac:
         print(quad)
 
-    asm_code = generate_x86(tac)
-    save_asm("program.asm",asm_code)
-    print("\nAssembly code written to program.asm")
+    # --- x86 Code Generation ---
+    # Pass the symbol table so we declare all variables in .data
+    asm_code = generate_x86(tac, variables=symbol_table.keys())
+    save_asm(output_file, asm_code)
+    
+    print(f"\nSuccess! Assembly code written to {output_file}")
+    print(f"To build and run:")
+    print(f"  nasm -f elf32 -o program.o {output_file}")
+    print(f"  ld -m elf_i386 program.o -o program")
+    print(f"  ./program")

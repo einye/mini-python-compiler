@@ -1,10 +1,12 @@
 # x86_generator.py
 
-def generate_x86(tac):
+def generate_x86(tac, variables=None):
     registers = ['eax', 'ebx', 'ecx', 'edx']
     reg_map = {}
     mem_map = {}
-    data_section = set()
+    
+    # FIX: Start with the known variables from semantic analysis (if provided)
+    data_section = set(variables) if variables else set()
     asm = []
 
     def get_operand(op):
@@ -27,7 +29,7 @@ def generate_x86(tac):
                     return
         if not (isinstance(op, str) and op.startswith('L')):
             mem_map[op] = op
-            data_section.add(op)
+            data_section.add(op) # Ensure it's in the data section
 
     for quad in tac:
         op, a1, a2, res = quad
@@ -39,11 +41,15 @@ def generate_x86(tac):
 
     asm.append("section .data")
     asm.append("    newline db 10")
-    asm.append("    buf resb 12")
+    asm.append("    buf times 12 db 0")
     asm.append("    true_str db 'True', 10, 0")
     asm.append("    false_str db 'False', 10, 0")
+    
+    # Declare all variables, sorted for consistency
     for var in sorted(data_section):
-        asm.append(f"    {var} dd 0")
+        # Make sure we don't declare temporary registers or labels as memory
+        if not var.startswith('t') and not var.startswith('L'):
+            asm.append(f"    {var} dd 0")
 
     asm.append("\nsection .text")
     asm.append("    global _start")
@@ -91,6 +97,36 @@ def generate_x86(tac):
             if dst != 'eax':
                 asm.append(f"    mov {dst}, eax")
 
+        elif op == 'and':
+            left = get_operand(a1)
+            right = get_operand(a2)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {left}")
+            asm.append(f"    and eax, {right}")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+
+        elif op == 'or':
+            left = get_operand(a1)
+            right = get_operand(a2)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {left}")
+            asm.append(f"    or eax, {right}")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+
+        elif op == 'not':
+            src = get_operand(a1)
+            dst = get_operand(res)
+            asm.append(f"    mov eax, {src}")
+            # Bitwise NOT on 0 gives -1 (true), on 1 gives -2 (still truthy).
+            # Since Python's `not` yields True/False (1/0), normalize:
+            asm.append("    cmp eax, 0")
+            asm.append("    sete al")
+            asm.append("    movzx eax, al")
+            if dst != 'eax':
+                asm.append(f"    mov {dst}, eax")
+                
         elif op == 'ifnz':
             cond = get_operand(a1)
             label = res

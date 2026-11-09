@@ -20,8 +20,7 @@ def check_semantics(ast):
                 else:
                     yield stmt_node
             
-            for stmt in flatten_statement_list(node):                
-                #print("WALKING statement node:",stmt[0])
+            for stmt in flatten_statement_list(node):
                 walk(stmt, in_control_block)
 
         elif kind == 'statement':
@@ -135,3 +134,4 @@ def check_semantics(ast):
             raise SemanticError(f"Unknown expression kind: {kind}")
 
     walk(ast)
+    return env  # Return the symbol table for further use if needed
