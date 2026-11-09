@@ -5,9 +5,7 @@ from tac_generator import generate_tac
 import pprint
 from x86_generator import generate_x86, save_asm
 
-# -----------------------------------------------------------------------------
 # Lexer
-# -----------------------------------------------------------------------------
 
 # List of token names.  This is always required
 tokens = (
@@ -94,9 +92,7 @@ def t_error(t):
 # Build the lexer
 lexer = lex.lex()
 
-# -----------------------------------------------------------------------------
 # Parser
-# -----------------------------------------------------------------------------
 
 # Get the token list from the lexer
 tokens = tokens
@@ -111,7 +107,7 @@ precedence = (
     ('left', 'MULTIPLY', 'FLOOR_DIVIDE'),
 )
 
-# --- Productions (Grammar Rules) ---
+# Productions (Grammar Rules)
 
 def p_program(p):
     '''program : statement_list'''
@@ -251,9 +247,7 @@ def p_error(p):
 # Build the parser
 parser = yacc.yacc()
 
-# -----------------------------------------------------------------------------
 # Main
-# -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     # Example usage:
