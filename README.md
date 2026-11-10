@@ -4,6 +4,9 @@ A **compiler for a subset of Python**, written in Python. It takes a restricted 
 
 Built from scratch for learning how compilers work, just PLY, a hand-rolled symbol table, and a hand-written x86 code emitter.
 
+## Related
+I also maintain [`assembly-learning`](https://github.com/einye/assembly-learning) - hand-written x86 reference programs that helped me understand the code this compiler generates.
+
 ## What It Compiles
 
 ### Language Specification (The "minipython" Grammar)
